@@ -4,21 +4,26 @@ from rest_framework import status, permissions
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
 
+from .paginations import CustomPagination
 from accounts.permissions import IsSuperUserOrReadOnly, IsVerifiedSeller, IsVerifiedSellerOrReadOnly
 from .models import Product, Category
 from accounts.models import Seller
-from .serializers import ProductSerializer, CategorySerializer, SellerSerializer
+from .serializers import ProductSerializer, CategorySerializer, SellerSerializer, SellerDetailSerializer
 
 
 
 
 class ProductListCreateView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    pagination_class = CustomPagination
 
     def get(self, request):
         products = Product.objects.all()
-        serializer = ProductSerializer(products, many=True, context={'request': request})
-        return Response(serializer.data)
+        paginator = CustomPagination()
+        result_page = paginator.paginate_queryset(products, request)
+
+        serializer = ProductSerializer(result_page, many=True, context={'request': request})
+        return paginator.get_paginated_response(serializer.data)
 
     def post(self, request):
         # Check if user has seller profile and is verified
@@ -80,6 +85,7 @@ class ProductDetailView(APIView):
 
 class ProductSearchView(APIView):
     permission_classes = [permissions.AllowAny]
+    pagination_class = CustomPagination
 
     def get(self, request):
         query = request.query_params.get('search', '')
@@ -114,21 +120,28 @@ class ProductSearchView(APIView):
                 filters &= Q(seller__company_name__icontains=seller) | Q(seller__user__username__icontains=seller)
 
         products = Product.objects.filter(filters)
+        paginator = CustomPagination()
+        result_page = paginator.paginate_queryset(products, request)
+
         serializer = ProductSerializer(
-            products,
+            result_page,
             many=True,
             context={'request': request}
         )
-        return Response(serializer.data)
+        return paginator.get_paginated_response(serializer.data)
 
 
 class CategoryListCreateView(APIView):
     permission_classes = [IsSuperUserOrReadOnly]
+    pagination_class = CustomPagination
 
     def get(self, request):
         categories = Category.objects.all()
-        serializer = CategorySerializer(categories, many=True)
-        return Response(serializer.data)
+        paginator = CustomPagination()
+        result_page = paginator.paginate_queryset(categories, request)
+
+        serializer = CategorySerializer(result_page, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
     def post(self, request):
         serializer = CategorySerializer(data=request.data)
@@ -166,10 +179,26 @@ class CategoryDetailView(APIView):
 
 class SellerListView(APIView):
     permission_classes = [permissions.AllowAny]
+    pagination_class = CustomPagination
 
     def get(self, request):
         sellers = Seller.objects.all()
-        serializer = SellerSerializer(categories, many=True)
+        paginator = CustomPagination()
+        result_page = paginator.paginate_queryset(sellers, request)
+
+        serializer = SellerSerializer(result_page, many=True, context={'request': request})
+        return paginator.get_paginated_response(serializer.data)
+
+
+class SellerDetailView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, pk):
+        seller = get_object_or_404(Seller, pk=pk)
+        serializer = SellerDetailSerializer(
+            seller,
+            context={'request': request}
+        )
         return Response(serializer.data)
 
 
