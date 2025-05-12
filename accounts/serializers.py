@@ -70,17 +70,25 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
 
+
 class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()
+    username = serializers.CharField()
 
-    def validate_email(self, value):
-        if not User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("No user found with this email.")
-        return value
+    def validate(self, data):
+        email = data.get('email')
+        username = data.get('username')
+
+        # Check if a user with both email and username exists
+        if not User.objects.filter(email=email, username=username).exists():
+            raise serializers.ValidationError("No user found with this email and username combination.")
+        return data
 
     def save(self):
         email = self.validated_data['email']
-        user = User.objects.get(email=email)
+        username = self.validated_data['username']
+        user = User.objects.get(email=email, username=username)
+
         uid = urlsafe_base64_encode(smart_bytes(user.id))
         token = PasswordResetTokenGenerator().make_token(user)
 
@@ -93,6 +101,7 @@ class PasswordResetRequestSerializer(serializers.Serializer):
             recipient_list=[user.email],
             fail_silently=False,
         )
+
 
 
 class SetNewPasswordSerializer(serializers.Serializer):

@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status, permissions
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
+from django.conf import settings
 from .serializers import (
     RegisterSerializer,
     LoginSerializer,
@@ -12,6 +13,8 @@ from .serializers import (
 )
 from django.contrib.auth import authenticate
 from .models import Seller  # Import the Seller model
+
+
 
 class RegisterView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -110,7 +113,7 @@ class PasswordResetRequestView(APIView):
         if serializer.is_valid():
             serializer.save()
             return Response(
-                {"message": "Password reset link has been sent if the email exists."},
+                {"message": "Password reset link has been sent to your email."},
                 status=status.HTTP_200_OK
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

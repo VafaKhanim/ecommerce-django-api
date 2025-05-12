@@ -18,7 +18,18 @@ import os
 load_dotenv()  # .env faylını yükləyir
 
 SECRET_KEY = os.getenv('SECRET_KEY')
+
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.getenv('EMAIL_HOST')
+EMAIL_PORT = os.getenv('EMAIL_PORT')
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS')
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+DEFAULT_FROM_EMAIL = os.getenv('EMAIL_HOST_USER')
+
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -176,6 +187,8 @@ AUTHENTICATION_BACKENDS = [
 
 CSRF_COOKIE_SECURE = False
 
+
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
 
 
 
