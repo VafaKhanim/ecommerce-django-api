@@ -10,14 +10,15 @@ class Seller(models.Model):
     is_verified = models.BooleanField(default=False)
     phone_number = models.CharField(max_length=20, blank=True)
 
+
     def __str__(self):
         return f"{self.company_name} ({self.user.username})"
 
 
-# Remove is_seller from UserProfile or keep as legacy field
+
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     is_customer = models.BooleanField(default=True)
-    # is_seller removed or kept as backup
+
 
 

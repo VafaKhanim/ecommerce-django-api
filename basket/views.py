@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404
 
 from .models import Basket, BasketItem
 from .serializers import BasketItemSerializer, BasketSerializer
+from products.models import Product
 
 
 class BasketView(APIView):
@@ -27,25 +28,46 @@ class BasketItemListCreate(APIView):
 
     def post(self, request):
         basket, created = Basket.objects.get_or_create(customer=request.user)
-        request.data['basket'] = basket.id
 
-        serializer = BasketItemSerializer(data=request.data)
-        if serializer.is_valid():
-            # Check if item already exists in basket
-            product_id = request.data.get('product')
-            existing_item = basket.basketitem_set.filter(product_id=product_id).first()
+        # Create a mutable copy of request.data
+        data = request.data.copy()
+        data['basket'] = basket.id
 
-            if existing_item:
-                # Update quantity if item exists
-                existing_item.quantity += int(request.data.get('quantity', 1))
-                existing_item.save()
-                serializer = BasketItemSerializer(existing_item)
-            else:
-                # Create new item
-                serializer.save(basket=basket)
+        # Validate required fields
+        if 'product' not in data:
+            return Response(
+                {"error": "Product ID is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # Verify product exists
+        try:
+            product = Product.objects.get(pk=data['product'])
+        except Product.DoesNotExist:
+            return Response(
+                {"error": "Product not found"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = BasketItemSerializer(data=data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check for existing item
+        existing_item = basket.basketitem_set.filter(product=product).first()
+
+        if existing_item:
+            # Update quantity if item exists
+            quantity = int(data.get('quantity', 1))
+            existing_item.quantity += quantity
+            existing_item.save()
+            serializer = BasketItemSerializer(existing_item)
+        else:
+            # Create new item
+            serializer.save(basket=basket, product=product)
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
 
 
 class BasketItemDetail(APIView):

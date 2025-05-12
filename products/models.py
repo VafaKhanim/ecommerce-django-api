@@ -1,7 +1,7 @@
 from django.db import models
 from django.utils.text import slugify
 from django.contrib.auth.models import User
-from accounts.models import Seller
+
 
 
 class Category(models.Model):
@@ -25,7 +25,7 @@ class Product(models.Model):
     stock = models.PositiveIntegerField()  # Changed to PositiveIntegerField
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
     slug = models.SlugField(unique=True, blank=True)
-    seller = models.ForeignKey(Seller, on_delete=models.CASCADE, related_name='products')
+    seller = models.ForeignKey('accounts.Seller', on_delete=models.CASCADE, related_name='products')
     created_at = models.DateTimeField(auto_now_add=True)  # Added for better tracking
     updated_at = models.DateTimeField(auto_now=True)     # Added for better tracking
 

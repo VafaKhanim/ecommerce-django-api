@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Q
 
 from .paginations import CustomPagination
-from accounts.permissions import IsSuperUserOrReadOnly, IsVerifiedSeller, IsVerifiedSellerOrReadOnly
+from accounts.permissions import IsSuperUserOrReadOnly, IsVerifiedSellerOrReadOnly
 from .models import Product, Category
 from accounts.models import Seller
 from .serializers import ProductSerializer, CategorySerializer, SellerSerializer, SellerDetailSerializer
@@ -14,37 +14,30 @@ from .serializers import ProductSerializer, CategorySerializer, SellerSerializer
 
 
 class ProductListCreateView(APIView):
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [IsVerifiedSellerOrReadOnly]
     pagination_class = CustomPagination
 
     def get(self, request):
         products = Product.objects.all()
         paginator = CustomPagination()
         result_page = paginator.paginate_queryset(products, request)
-
         serializer = ProductSerializer(result_page, many=True, context={'request': request})
         return paginator.get_paginated_response(serializer.data)
 
     def post(self, request):
-        # Check if user has seller profile and is verified
-        if not hasattr(request.user, 'seller_profile') or not request.user.seller_profile.is_verified:
-            return Response(
-                {"error": "Only verified sellers can add products"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
         serializer = ProductSerializer(
             data=request.data,
             context={'request': request}
         )
         if serializer.is_valid():
-            serializer.save(seller=request.user.seller_profile)  # Use seller_profile instead of user
+            serializer.save(seller=request.user.seller_profile)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+
 class ProductDetailView(APIView):
-    permission_classes = [IsVerifiedSellerOrReadOnly]  # Changed permission
+    permission_classes = [IsVerifiedSellerOrReadOnly]
 
     def get_object(self, slug):
         return get_object_or_404(
@@ -61,6 +54,7 @@ class ProductDetailView(APIView):
         product = self.get_object(slug)
 
         # Ownership check is now handled by IsVerifiedSellerOrReadOnly
+        self.check_object_permissions(request, product)
         serializer = ProductSerializer(
             product,
             data=request.data,
@@ -77,7 +71,8 @@ class ProductDetailView(APIView):
 
     def delete(self, request, slug):
         product = self.get_object(slug)
-        # Ownership check handled by permission class
+        # Ownership check handled by IsVerifiedSellerOrReadOnly
+        self.check_object_permissions(request, product)
         product.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -88,40 +83,55 @@ class ProductSearchView(APIView):
     pagination_class = CustomPagination
 
     def get(self, request):
-        query = request.query_params.get('search', '')
+        # Axtarış parametrləri
+        search_query = request.query_params.get('search', '').strip()
         min_price = request.query_params.get('min_price')
         max_price = request.query_params.get('max_price')
         category = request.query_params.get('category')
         seller = request.query_params.get('seller')
 
-        filters = Q(name__icontains=query) | Q(description__icontains=query)
 
-        # Price filtering
-        if min_price:
-            try:
+
+        filters = Q()
+        if search_query:
+            filters &= (
+                    Q(name__icontains=search_query) |
+                    Q(description__icontains=search_query) |
+                    Q(slug__icontains=search_query)
+            )
+
+        # Qiymət filtri
+        try:
+            if min_price:
                 filters &= Q(price__gte=float(min_price))
-            except ValueError:
-                pass
-        if max_price:
-            try:
+            if max_price:
                 filters &= Q(price__lte=float(max_price))
-            except ValueError:
-                pass
+        except (ValueError, TypeError):
+            pass  # Qiymət düzgün deyilsə, bu filtri ignore edirik
 
-        # Category filtering
+        # Kateqoriya filtri
         if category:
-            filters &= Q(category__slug=category)
+            filters &= (
+                    Q(category__slug__icontains=category) |
+                    Q(category__name__icontains=category)
+            )
 
-        # Seller filtering
+        # Satıcı filtri
         if seller:
             if seller.isdigit():
                 filters &= Q(seller__id=int(seller))
             else:
-                filters &= Q(seller__company_name__icontains=seller) | Q(seller__user__username__icontains=seller)
+                filters &= (Q(seller__company_name__icontains=seller) |
+                            Q(seller__user__username__icontains=seller))
 
-        products = Product.objects.filter(filters)
-        paginator = CustomPagination()
+
+        products = Product.objects.filter(filters).distinct()
+        print(f"Tapılan məhsul sayı: {products.count()}")
+
+
+        paginator = self.pagination_class()
         result_page = paginator.paginate_queryset(products, request)
+
 
         serializer = ProductSerializer(
             result_page,
@@ -129,6 +139,7 @@ class ProductSearchView(APIView):
             context={'request': request}
         )
         return paginator.get_paginated_response(serializer.data)
+
 
 
 class CategoryListCreateView(APIView):
@@ -143,12 +154,14 @@ class CategoryListCreateView(APIView):
         serializer = CategorySerializer(result_page, many=True)
         return paginator.get_paginated_response(serializer.data)
 
+
     def post(self, request):
         serializer = CategorySerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 class CategoryDetailView(APIView):
@@ -179,28 +192,34 @@ class CategoryDetailView(APIView):
 
 class SellerListView(APIView):
     permission_classes = [permissions.AllowAny]
-    pagination_class = CustomPagination
 
     def get(self, request):
-        sellers = Seller.objects.all()
+        sellers = Seller.objects.all().order_by('id')
         paginator = CustomPagination()
         result_page = paginator.paginate_queryset(sellers, request)
 
-        serializer = SellerSerializer(result_page, many=True, context={'request': request})
+        serializer = SellerSerializer(
+            result_page,
+            many=True,
+            context={'request': request}
+        )
         return paginator.get_paginated_response(serializer.data)
+
 
 
 class SellerDetailView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request, pk):
-        seller = get_object_or_404(Seller, pk=pk)
+        seller = get_object_or_404(
+            Seller.objects.prefetch_related('products'),
+            pk=pk
+        )
         serializer = SellerDetailSerializer(
             seller,
             context={'request': request}
         )
         return Response(serializer.data)
-
 
 
 

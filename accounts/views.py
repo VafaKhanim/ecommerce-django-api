@@ -39,10 +39,11 @@ class SellerRegisterView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        serializer = SellerRegisterSerializer(data=request.data)
+        serializer = SellerRegisterSerializer(data=request.data, context={'request': request})
+
         if serializer.is_valid():
             # Create seller profile for the authenticated user
-            seller = serializer.save(user=request.user)
+            seller = serializer.save()
             return Response({
                 "message": "Seller registration successful",
                 "seller_id": seller.id,
@@ -80,7 +81,6 @@ class LoginView(APIView):
             "is_verified": user.seller_profile.is_verified if hasattr(user, 'seller_profile') else False
         }, status=status.HTTP_200_OK)
 
-# Keep existing LogoutView, PasswordResetRequestView, and SetNewPasswordView unchanged
 
 
 class LogoutView(APIView):
