@@ -83,13 +83,11 @@ class ProductSearchView(APIView):
     pagination_class = CustomPagination
 
     def get(self, request):
-        # Axtarış parametrləri
         search_query = request.query_params.get('search', '').strip()
         min_price = request.query_params.get('min_price')
         max_price = request.query_params.get('max_price')
         category = request.query_params.get('category')
         seller = request.query_params.get('seller')
-
 
 
         filters = Q()
@@ -100,23 +98,22 @@ class ProductSearchView(APIView):
                     Q(slug__icontains=search_query)
             )
 
-        # Qiymət filtri
         try:
             if min_price:
                 filters &= Q(price__gte=float(min_price))
             if max_price:
                 filters &= Q(price__lte=float(max_price))
         except (ValueError, TypeError):
-            pass  # Qiymət düzgün deyilsə, bu filtri ignore edirik
+            pass
 
-        # Kateqoriya filtri
+
         if category:
             filters &= (
                     Q(category__slug__icontains=category) |
                     Q(category__name__icontains=category)
             )
 
-        # Satıcı filtri
+
         if seller:
             if seller.isdigit():
                 filters &= Q(seller__id=int(seller))
